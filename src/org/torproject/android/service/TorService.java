@@ -171,6 +171,9 @@ public class TorService extends Service implements TorServiceConstants, Runnable
 		long when = System.currentTimeMillis();
 
 		Notification notification = new Notification(icon, tickerText, when);
+		notification.flags = Notification.FLAG_NO_CLEAR;
+		notification.flags = Notification.FLAG_ONGOING_EVENT;
+		
 		
 		Context context = getApplicationContext();
 		CharSequence contentTitle = getString(R.string.app_name);
