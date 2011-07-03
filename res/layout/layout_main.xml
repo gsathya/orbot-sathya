@@ -38,7 +38,7 @@
 		android:id="@+id/imgStatus"
 		android:layout_margin="5dip"
 		android:layout_width="320dip"
-		android:layout_height="320dip"
+		android:layout_height="280dip"
 		android:src="@drawable/toroff"
 		android:layout_gravity="center_horizontal"
 		/>

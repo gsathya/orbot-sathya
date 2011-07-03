@@ -46,8 +46,6 @@ import android.widget.TextView;
 
 public class Orbot extends Activity implements OnLongClickListener, TorConstants
 {
-
-	private static final int VISIBLE = 0;
 	/* Useful UI bits */
 	private TextView lblStatus = null; //the main text display widget
 	private ImageView imgStatus = null; //the main touchable image for activating Orbot
@@ -633,7 +631,7 @@ public class Orbot extends Activity implements OnLongClickListener, TorConstants
 		Message msg = mHandler.obtainMessage(TorServiceConstants.ENABLE_TOR_MSG);
     	mHandler.sendMessage(msg);
     	
-        trafficRow.setVisibility(VISIBLE);
+        trafficRow.setVisibility(RelativeLayout.VISIBLE);
     	
     }
     
@@ -644,6 +642,8 @@ public class Orbot extends Activity implements OnLongClickListener, TorConstants
     		mService.setProfile(TorServiceConstants.PROFILE_OFF);
     		Message msg = mHandler.obtainMessage(TorServiceConstants.DISABLE_TOR_MSG);
     		mHandler.sendMessage(msg);
+            trafficRow.setVisibility(RelativeLayout.GONE);
+
     	}
     	
      
@@ -746,11 +746,11 @@ public class Orbot extends Activity implements OnLongClickListener, TorConstants
 
             	case TorServiceConstants.MESSAGE_TRAFFIC_COUNT :
             		
-            		DataCount datacount =  (DataCount) msg.obj;            		
+            		Bundle data = msg.getData();
+            		DataCount datacount =  new DataCount(data.getLong("upload"),data.getLong("download"));      		
             		downloadText.setText(formatCount(datacount.Download));
             		uploadText.setText(formatCount(datacount.Upload));
-            		downloadText.invalidate();
-            		uploadText.invalidate();
+            		
             		
             		break;
                 		
@@ -875,15 +875,16 @@ public class Orbot extends Activity implements OnLongClickListener, TorConstants
    		public long Upload;
    		// data downloaded
    		public long Download;
+   		
+   		DataCount(long Upload, long Download){
+   			this.Upload = Upload;
+   			this.Download = Download;
+   		}
    	}
    	
    	private String formatCount(long count) {
-		// Converts the supplied argument into a string.
-		// Under 2Mb, returns "xxx.xKb"
-		// Over 2Mb, returns "xxx.xxMb"
-		if (count < 1e6 * 2)
-			return ((float)((int)(count*10/1024))/10 + "kB");
-		return ((float)((int)(count*100/1024/1024))/100 + "MB");
+ 
+   		return count+" kB";
 	}
    	
 }
