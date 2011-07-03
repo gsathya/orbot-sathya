@@ -81,4 +81,6 @@ public interface TorServiceConstants {
     public static final int ENABLE_TOR_MSG = 2;
     public static final int DISABLE_TOR_MSG = 3;
     public static final int LOG_MSG = 4;
+	public static final int MESSAGE_TRAFFIC_COUNT = 5;
+
 }

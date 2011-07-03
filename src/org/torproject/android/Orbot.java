@@ -41,17 +41,22 @@ import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.View.OnLongClickListener;
 import android.widget.ImageView;
+import android.widget.RelativeLayout;
 import android.widget.TextView;
 
 public class Orbot extends Activity implements OnLongClickListener, TorConstants
 {
-	
+
+	private static final int VISIBLE = 0;
 	/* Useful UI bits */
 	private TextView lblStatus = null; //the main text display widget
 	private ImageView imgStatus = null; //the main touchable image for activating Orbot
 	private ProgressDialog progressDialog;
 	private MenuItem mItemOnOff = null;
-	
+    private RelativeLayout trafficRow = null; // the row showing the traffic
+    private TextView downloadText = null;
+    private TextView uploadText = null;
+
 	/* Some tracking bits */
 	private int torStatus = STATUS_READY; //latest status reported from the tor service
 	
@@ -62,14 +67,21 @@ public class Orbot extends Activity implements OnLongClickListener, TorConstants
 
 	SharedPreferences prefs;
 	
+	public static Orbot currentInstance = null;
+	
+    private static void setCurrent(Orbot current){
+    	Orbot.currentInstance = current;
+    }
+    
     /** Called when the activity is first created. */
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
+        Orbot.setCurrent(this);
+
       //if Tor binary is not running, then start the service up
 		startService(new Intent(INTENT_TOR_SERVICE));
 		
-
     	setTheme(android.R.style.Theme_Black_NoTitleBar);
     	
     	prefs = PreferenceManager.getDefaultSharedPreferences(this);
@@ -80,8 +92,11 @@ public class Orbot extends Activity implements OnLongClickListener, TorConstants
 		lblStatus.setOnLongClickListener(this);
     	imgStatus = (ImageView)findViewById(R.id.imgStatus);
     	imgStatus.setOnLongClickListener(this);
-    	
-    	
+    	trafficRow = (RelativeLayout)findViewById(R.id.trafficRow);
+    	downloadText = (TextView)findViewById(R.id.trafficDown);
+        uploadText = (TextView)findViewById(R.id.trafficUp);
+        
+
 
     }
     
@@ -618,7 +633,7 @@ public class Orbot extends Activity implements OnLongClickListener, TorConstants
 		Message msg = mHandler.obtainMessage(TorServiceConstants.ENABLE_TOR_MSG);
     	mHandler.sendMessage(msg);
     	
-    	
+        trafficRow.setVisibility(VISIBLE);
     	
     }
     
@@ -702,7 +717,7 @@ public class Orbot extends Activity implements OnLongClickListener, TorConstants
     };
     
 
-    private Handler mHandler = new Handler() {
+    public Handler mHandler = new Handler() {
         public void handleMessage(Message msg) {
             switch (msg.what) {
                 case TorServiceConstants.STATUS_MSG:
@@ -727,6 +742,17 @@ public class Orbot extends Activity implements OnLongClickListener, TorConstants
                 	updateStatus((String)msg.getData().getString(HANDLER_TOR_MSG));
                 	
                 	break;
+                	
+
+            	case TorServiceConstants.MESSAGE_TRAFFIC_COUNT :
+            		
+            		DataCount datacount =  (DataCount) msg.obj;            		
+            		downloadText.setText(formatCount(datacount.Download));
+            		uploadText.setText(formatCount(datacount.Upload));
+            		downloadText.invalidate();
+            		uploadText.invalidate();
+            		
+            		break;
                 		
                 default:
                     super.handleMessage(msg);
@@ -843,4 +869,21 @@ public class Orbot extends Activity implements OnLongClickListener, TorConstants
 		
 		
     }
+
+   	public class DataCount {
+   		// data uploaded
+   		public long Upload;
+   		// data downloaded
+   		public long Download;
+   	}
+   	
+   	private String formatCount(long count) {
+		// Converts the supplied argument into a string.
+		// Under 2Mb, returns "xxx.xKb"
+		// Over 2Mb, returns "xxx.xxMb"
+		if (count < 1e6 * 2)
+			return ((float)((int)(count*10/1024))/10 + "kB");
+		return ((float)((int)(count*100/1024/1024))/100 + "MB");
+	}
+   	
 }
