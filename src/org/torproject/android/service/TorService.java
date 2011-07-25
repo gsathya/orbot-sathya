@@ -1,4 +1,4 @@
-/* Copyright (c) 2009, Nathan Freitas, Orbot / The Guardian Project - http://openideals.com/guardian */
+/* Copyright (c) 2009-2011, Nathan Freitas, Orbot / The Guardian Project - http://openideals.com/guardian */
 /* See LICENSE for licensing information */
 package org.torproject.android.service;
 
@@ -63,15 +63,12 @@ public class TorService extends Service implements TorServiceConstants, Runnable
     private ArrayList<String> resetBuffer = null;
      
    
-    private String appHome;
-    private String appBinHome;
-    private String appDataHome;
+   //   private String appHome;
+    private File appBinHome;
+    private File appDataHome;
     
     private String torBinaryPath;
     private String privoxyPath;
-    
-	
-    private boolean hasRoot = false;
     
     /** Called when the activity is first created. */
     public void onCreate() {
@@ -419,43 +416,37 @@ public class TorService extends Service implements TorServiceConstants, Runnable
     
     private boolean checkTorBinaries () throws Exception
     {
-    	//android.os.Debug.waitForDebugger();
-    	
     	//check and install iptables
-    	Api.assertBinaries(this, true);
+    	IptablesManager.assertBinaries(this, true);
     	
-    	File fileInstall = getDir("",0);
-    	String subBinPath = "bin/";
     	
-		appHome = fileInstall.getAbsolutePath();
-		appBinHome = appHome + subBinPath;
-		appDataHome = getCacheDir().getAbsolutePath() + '/';
-		logNotice( "appHome=" + appHome);
+    	appBinHome = getDir("bin",0);
+    	appDataHome = getCacheDir();
+    	
+	//	logNotice( "appHome=" + appHome);
 		
-		torBinaryPath = appBinHome + TOR_BINARY_ASSET_KEY;
-    	privoxyPath = appBinHome + PRIVOXY_ASSET_KEY;
-    	
+		File fileTor = new File(appBinHome, TOR_BINARY_ASSET_KEY);
+		File filePrivoxy = new File(appBinHome, PRIVOXY_ASSET_KEY);
+
+		
 		logNotice( "checking Tor binaries");
-	    
-		boolean torBinaryExists = new File(torBinaryPath).exists();
-		boolean privoxyBinaryExists = new File(privoxyPath).exists();
 		
-		if (!(torBinaryExists && privoxyBinaryExists))
+		if (!(fileTor.exists() && filePrivoxy.exists()))
 		{
 			killTorProcess ();
 			
-			TorBinaryInstaller installer = new TorBinaryInstaller(this, appBinHome, appBinHome); 
-			installer.start(true);
+			TorBinaryInstaller installer = new TorBinaryInstaller(this, appBinHome); 
+			boolean success = installer.installFromRaw();
 			
-			torBinaryExists = new File(torBinaryPath).exists();
-			privoxyBinaryExists = new File(privoxyPath).exists();
-			
-    		if (torBinaryExists && privoxyBinaryExists)
+    		if (success)
     		{
     			logNotice(getString(R.string.status_install_success));
     	
     			showToolbarNotification(getString(R.string.status_install_success), NOTIFY_ID, R.drawable.tornotification);
     		
+
+    			torBinaryPath = fileTor.getAbsolutePath();
+    			privoxyPath = filePrivoxy.getAbsolutePath();
     		}
     		else
     		{
@@ -473,6 +464,9 @@ public class TorService extends Service implements TorServiceConstants, Runnable
 			logNotice("Found Tor binary: " + torBinaryPath);
 			logNotice("Found Privoxy binary: " + privoxyPath);
 
+
+			torBinaryPath = fileTor.getAbsolutePath();
+			privoxyPath = filePrivoxy.getAbsolutePath();
 		}
 	
 		StringBuilder log = new StringBuilder ();
@@ -548,6 +542,7 @@ public class TorService extends Service implements TorServiceConstants, Runnable
 	 		boolean enableTransparentProxy = prefs.getBoolean("pref_transparent", false);
 	 		boolean transProxyAll = prefs.getBoolean("pref_transparent_all", false);
 	 		boolean transProxyPortFallback = prefs.getBoolean("pref_transparent_port_fallback", false);
+	 		boolean transProxyTethering = prefs.getBoolean("pref_transparent_tethering", false);
 	 		
 	     	TorService.logMessage ("Transparent Proxying: " + enableTransparentProxy);
 	     	
@@ -584,6 +579,7 @@ public class TorService extends Service implements TorServiceConstants, Runnable
 						showAlert("Status", "Setting up app-based transparent proxying...");
 						code = TorTransProxy.setTransparentProxyingByApp(this,AppManager.getApps(this));
 					}
+					
 				}
 			
 				TorService.logMessage ("TorTransProxy resp code: " + code);
@@ -591,11 +587,22 @@ public class TorService extends Service implements TorServiceConstants, Runnable
 				if (code == 0)
 				{
 					showAlert("Status", "Transparent proxying ENABLED");
+					
+
+					
+					if (transProxyTethering)
+					{
+						showAlert("Status", "TransProxy enabled for Tethering!");
+
+						TorTransProxy.enableTetheringRules(this);
+					}
 				}
 				else
 				{
 					showAlert("Status", "WARNING: error starting transparent proxying!");
 				}
+				
+				
 			
 				return true;
 	 				
@@ -621,9 +628,9 @@ public class TorService extends Service implements TorServiceConstants, Runnable
     	
     	StringBuilder log = new StringBuilder();
 		
-		String torrcPath = appBinHome + TORRC_ASSET_KEY;
+		String torrcPath = new File(appBinHome, TORRC_ASSET_KEY).getAbsolutePath();
 		
-		String[] torCmd = {torBinaryPath + " DataDirectory " + appDataHome + " -f " + torrcPath  + " || exit\n"};
+		String[] torCmd = {torBinaryPath + " DataDirectory " + appDataHome.getAbsolutePath() + " -f " + torrcPath  + " || exit\n"};
 		
 		boolean runAsRootFalse = false;
 		boolean waitForProcess = false;
@@ -691,7 +698,7 @@ public class TorService extends Service implements TorServiceConstants, Runnable
     		{
     			log = new StringBuilder();
     			
-    			String privoxyConfigPath = appBinHome + PRIVOXYCONFIG_ASSET_KEY;
+    			String privoxyConfigPath = new File(appBinHome, PRIVOXYCONFIG_ASSET_KEY).getAbsolutePath();
     			
     			String[] cmds = 
     			{ privoxyPath + " " + privoxyConfigPath + " &" };
@@ -756,7 +763,7 @@ public class TorService extends Service implements TorServiceConstants, Runnable
 
 					logNotice( "SUCCESS connected to control port");
 			        
-			        String torAuthCookie = appDataHome + TOR_CONTROL_COOKIE;
+			        String torAuthCookie = new File(appDataHome, TOR_CONTROL_COOKIE).getAbsolutePath();
 			        
 			        File fileCookie = new File(torAuthCookie);
 			        
@@ -1152,18 +1159,12 @@ public class TorService extends Service implements TorServiceConstants, Runnable
         	if (value == null || value.length() == 0)
         	{
         		resetBuffer.add(name);
-        		/*
-        		if (conn != null)
-        		{
-        			try {
-						conn.resetConf(Arrays.asList(new String[]{name}));
-					} catch (IOException e) {
-						Log.w(TAG, "Unable to reset conf",e);
-					}
-        		}*/
+        		
         	}
         	else
+        	{
         		configBuffer.add(name + ' ' + value);
+        	}
 	        
         	return false;
         }
@@ -1334,13 +1335,10 @@ public class TorService extends Service implements TorServiceConstants, Runnable
         boolean enableHiddenServices = prefs.getBoolean("pref_hs_enable", false);
 
         boolean enableStrictNodes = prefs.getBoolean("pref_strict_nodes", false);
-        String entranceNodes = prefs.getString("pref_entrance_nodes", "");
-        String exitNodes = prefs.getString("pref_exit_nodes", "");
-        String excludeNodes = prefs.getString("pref_exclude_nodes", "");
+        String entranceNodes = prefs.getString("pref_entrance_nodes", null);
+        String exitNodes = prefs.getString("pref_exit_nodes", null);
+        String excludeNodes = prefs.getString("pref_exclude_nodes", null);
         
-        
-		//boolean enableTransparentProxy = prefs.getBoolean(TorConstants.PREF_TRANSPARENT, false);
-		
         if (currentStatus == STATUS_ON)
         {
         	//reset iptables rules in active mode
@@ -1355,10 +1353,10 @@ public class TorService extends Service implements TorServiceConstants, Runnable
 			}
         }
         
-        mBinder.updateConfiguration("EntranceNodes", entranceNodes, false);
+        mBinder.updateConfiguration("EntryNodes", entranceNodes, false);
         mBinder.updateConfiguration("ExitNodes", exitNodes, false);
 		mBinder.updateConfiguration("ExcludeNodes", excludeNodes, false);
-		mBinder.updateConfiguration("StrictExitNodes", enableStrictNodes ? "1" : "0", false);
+		mBinder.updateConfiguration("StrictNodes", enableStrictNodes ? "1" : "0", false);
 		
 		if (useBridges)
 		{
@@ -1451,7 +1449,7 @@ public class TorService extends Service implements TorServiceConstants, Runnable
 
         if (enableHiddenServices)
         {
-        	mBinder.updateConfiguration("HiddenServiceDir",appDataHome, false);
+        	mBinder.updateConfiguration("HiddenServiceDir",appDataHome.getAbsolutePath(), false);
         	
         	String hsPorts = prefs.getString("pref_hs_ports","");
         	
